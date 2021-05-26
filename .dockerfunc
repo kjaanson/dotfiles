@@ -221,12 +221,39 @@ consul(){
 	hostess add consul "$(docker inspect --format '{{.NetworkSettings.Networks.bridge.IPAddress}}' consul)"
 	browser-exec "http://consul:8500"
 }
+cura(){
+	del_stopped cura
+
+	docker run -d \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-e "DISPLAY=unix${DISPLAY}" \
+		-v "${HOME}/cura:/root/cura" \
+		-v "${HOME}/.cache/cura:/root/.cache/cura" \
+		-v "${HOME}/.config/cura:/root/.config/cura" \
+		-e QT_DEVICE_PIXEL_RATIO \
+		-e GDK_SCALE \
+		-e GDK_DPI_SCALE \
+		--device /dev/dri \
+		--name cura \
+		${DOCKER_REPO_PREFIX}/cura
+}
 dcos(){
 	docker run -it --rm \
 		-v "${HOME}/.dcos:/root/.dcos" \
 		-v "$(pwd):/root/apps" \
 		-w /root/apps \
 		${DOCKER_REPO_PREFIX}/dcos-cli "$@"
+}
+figma() {
+	del_stopped figma
+
+	docker run --rm -it \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-e "DISPLAY=unix${DISPLAY}" \
+		--name figma \
+		${DOCKER_REPO_PREFIX}/figma-wine bash
 }
 firefox(){
 	del_stopped firefox
@@ -272,7 +299,7 @@ dgcloud(){
 	docker run --rm -it \
 		-v "${HOME}/.gcloud:/root/.config/gcloud" \
 		-v "${HOME}/.ssh:/root/.ssh:ro" \
-		-v "$(which docker):/usr/bin/docker" \
+		-v "$(command -v docker):/usr/bin/docker" \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		--name gcloud \
 		${DOCKER_REPO_PREFIX}/gcloud "$@"
@@ -306,11 +333,15 @@ hollywood(){
 		${DOCKER_REPO_PREFIX}/hollywood
 }
 htop(){
-	docker run --rm -it \
-		--pid host \
-		--net none \
-		--name htop \
-		${DOCKER_REPO_PREFIX}/htop
+	if [[ -n "$(which htop)" ]]; then
+		"$(which htop)" "$@"
+	else
+		docker run --rm -it \
+			--pid host \
+			--net none \
+			--name htop \
+			${DOCKER_REPO_PREFIX}/htop
+	fi
 }
 htpasswd(){
 	docker run --rm -it \
@@ -380,6 +411,23 @@ keypassxc(){
 		--name keypassxc \
 		${DOCKER_REPO_PREFIX}/keepassxc
 }
+kicad(){
+	del_stopped kicad
+
+	docker run -d \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-e "DISPLAY=unix${DISPLAY}" \
+		-v "${HOME}/kicad:/root/kicad" \
+		-v "${HOME}/.cache/kicad:/root/.cache/kicad" \
+		-v "${HOME}/.config/kicad:/root/.config/kicad" \
+		-e QT_DEVICE_PIXEL_RATIO \
+		-e GDK_SCALE \
+		-e GDK_DPI_SCALE \
+		--device /dev/dri \
+		--name kicad \
+		${DOCKER_REPO_PREFIX}/kicad
+}
 kvm(){
 	del_stopped kvm
 	relies_on pulseaudio
@@ -388,10 +436,14 @@ kvm(){
 	modprobe kvm
 
 	docker run -d \
+		--tmpfs /var/run \
 		-v /etc/localtime:/etc/localtime:ro \
 		-v /tmp/.X11-unix:/tmp/.X11-unix \
-		-v /run/libvirt:/var/run/libvirt \
+		-v "${HOME}/kvm:/root/kvm" \
 		-e "DISPLAY=unix${DISPLAY}" \
+		-e GDK_SCALE \
+		-e GDK_DPI_SCALE \
+		-e QT_DEVICE_PIXEL_RATIO \
 		--link pulseaudio:pulseaudio \
 		-e PULSE_SERVER=pulseaudio \
 		--group-add audio \
@@ -419,9 +471,13 @@ lpass(){
 		${DOCKER_REPO_PREFIX}/lpass "$@"
 }
 lynx(){
-	docker run --rm -it \
-		--name lynx \
-		${DOCKER_REPO_PREFIX}/lynx "$@"
+	if [[ -n "$(which lynx)" ]]; then
+		"$(which lynx)" "$@"
+	else
+		docker run --rm -it \
+			--name lynx \
+			${DOCKER_REPO_PREFIX}/lynx "$@"
+	fi
 }
 masscan(){
 	docker run -it --rm \
@@ -539,9 +595,13 @@ nginx(){
 	sudo hostess add jess 127.0.0.1
 }
 nmap(){
-	docker run --rm -it \
-		--net host \
-		${DOCKER_REPO_PREFIX}/nmap "$@"
+	if [[ -n "$(which nmap)" ]]; then
+		"$(which nmap)" "$@"
+	else
+		docker run --rm -it \
+			--net host \
+			${DOCKER_REPO_PREFIX}/nmap "$@"
+	fi
 }
 notify_osd(){
 	del_stopped notify_osd
@@ -570,6 +630,22 @@ now(){
 		--workdir /usr/src/repo \
 		--log-driver none \
 		${DOCKER_REPO_PREFIX}/now "$@"
+}
+openscad(){
+	del_stopped openscad
+
+	docker run -d \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-e "DISPLAY=unix${DISPLAY}" \
+		-v "${HOME}/openscad:/root/openscad" \
+		-v "${HOME}/.config/OpenSCAD:/root/.config/OpenSCAD" \
+		-e QT_DEVICE_PIXEL_RATIO \
+		-e GDK_SCALE \
+		-e GDK_DPI_SCALE \
+		--device /dev/dri \
+		--name openscad \
+		${DOCKER_REPO_PREFIX}/openscad
 }
 opensnitch(){
 	del_stopped opensnitchd
@@ -647,18 +723,22 @@ osquery(){
 		--logger_tls_period=10
 }
 pandoc(){
-	local file=${*: -1}
-	local lfile
-	lfile=$(readlink -m "$(pwd)/${file}")
-	local rfile
-	rfile=$(readlink -m "/$(basename "$file")")
-	local args=${*:1:${#@}-1}
+	if [[ -n "$(which pandoc)" ]]; then
+		"$(which pandoc)" "$@"
+	else
+		local file=${*: -1}
+		local lfile
+		lfile=$(readlink -m "$(pwd)/${file}")
+		local rfile
+		rfile=$(readlink -m "/$(basename "$file")")
+		local args=${*:1:${#@}-1}
 
-	docker run --rm \
-		-v "${lfile}:${rfile}" \
-		-v /tmp:/tmp \
-		--name pandoc \
-		${DOCKER_REPO_PREFIX}/pandoc "${args}" "${rfile}"
+		docker run --rm \
+			-v "${lfile}:${rfile}" \
+			-v /tmp:/tmp \
+			--name pandoc \
+			${DOCKER_REPO_PREFIX}/pandoc "${args}" "${rfile}"
+	fi
 }
 pivman(){
 	del_stopped pivman
@@ -945,15 +1025,19 @@ termboy(){
 		${DOCKER_REPO_PREFIX}/nes "/games/${game}.rom"
 }
 terraform(){
-	docker run -it --rm \
-		-v "${HOME}:${HOME}:ro" \
-		-v "$(pwd):/usr/src/repo" \
-		-v /tmp:/tmp \
-		--workdir /usr/src/repo \
-		--log-driver none \
-		-e GOOGLE_APPLICATION_CREDENTIALS \
-		-e SSH_AUTH_SOCK \
-		${DOCKER_REPO_PREFIX}/terraform "$@"
+	if [[ -n "$(which terraform)" ]]; then
+		"$(which terraform)" "$@"
+	else
+		docker run -it --rm \
+			-v "${HOME}:${HOME}:ro" \
+			-v "$(pwd):/usr/src/repo" \
+			-v /tmp:/tmp \
+			--workdir /usr/src/repo \
+			--log-driver none \
+			-e GOOGLE_APPLICATION_CREDENTIALS \
+			-e SSH_AUTH_SOCK \
+			${DOCKER_REPO_PREFIX}/terraform "$@"
+	fi
 }
 tor(){
 	del_stopped tor
@@ -1053,6 +1137,17 @@ virsh(){
 		--net container:kvm \
 		${DOCKER_REPO_PREFIX}/libvirt-client "$@"
 }
+virtualbox(){
+	del_stopped virtualbox
+
+	docker run -d \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-e "DISPLAY=unix${DISPLAY}" \
+		--privileged \
+		--name virtualbox \
+		${DOCKER_REPO_PREFIX}/virtualbox
+}
 virt_viewer(){
 	relies_on kvm
 
@@ -1109,8 +1204,30 @@ watchman(){
 		--name watchman \
 		${DOCKER_REPO_PREFIX}/watchman --foreground
 }
+weematrix(){
+	del_stopped weematrix
+
+	docker run --rm -it \
+		--user root \
+		-v "${HOME}/.weechat:/home/user/.weechat" \
+		${DOCKER_REPO_PREFIX}/weechat-matrix \
+		chown -R user /home/user/.weechat
+
+	docker run --rm -it \
+		-v /etc/localtime:/etc/localtime:ro \
+		-v "${HOME}/.weechat:/home/user/.weechat" \
+		-e "TERM=screen" \
+		--name weematrix \
+		${DOCKER_REPO_PREFIX}/weechat-matrix
+}
 weeslack(){
 	del_stopped weeslack
+
+	docker run --rm -it \
+		--user root \
+		-v "${HOME}/.weechat:/home/user/.weechat" \
+		${DOCKER_REPO_PREFIX}/wee-slack \
+		chown -R user /home/user/.weechat
 
 	docker run --rm -it \
 		-v /etc/localtime:/etc/localtime:ro \
@@ -1147,33 +1264,45 @@ wrk(){
 		${DOCKER_REPO_PREFIX}/wrk "$@"
 }
 ykman(){
-	del_stopped ykpersonalize
+	del_stopped ykman
 
-	docker run --rm -it \
-		-v /etc/localtime:/etc/localtime:ro \
-		--device /dev/usb \
-		--device /dev/bus/usb \
-		--name ykman \
-		${DOCKER_REPO_PREFIX}/ykman bash
+	if [[ -n "$(which ykman)" ]]; then
+		"$(which ykman)" "$@"
+	else
+		docker run --rm -it \
+			-v /etc/localtime:/etc/localtime:ro \
+			--device /dev/usb \
+			--device /dev/bus/usb \
+			--name ykman \
+			${DOCKER_REPO_PREFIX}/ykman bash
+	fi
 }
 ykpersonalize(){
 	del_stopped ykpersonalize
 
-	docker run --rm -it \
-		-v /etc/localtime:/etc/localtime:ro \
-		--device /dev/usb \
-		--device /dev/bus/usb \
-		--name ykpersonalize \
-		${DOCKER_REPO_PREFIX}/ykpersonalize bash
+	if [[ -n "$(which ykpersonalize)" ]]; then
+		"$(which ykpersonalize)" "$@"
+	else
+		docker run --rm -it \
+			-v /etc/localtime:/etc/localtime:ro \
+			--device /dev/usb \
+			--device /dev/bus/usb \
+			--name ykpersonalize \
+			${DOCKER_REPO_PREFIX}/ykpersonalize bash
+	fi
 }
 yubico_piv_tool(){
 	del_stopped yubico-piv-tool
 
-	docker run --rm -it \
-		-v /etc/localtime:/etc/localtime:ro \
-		--device /dev/usb \
-		--device /dev/bus/usb \
-		--name yubico-piv-tool \
-		${DOCKER_REPO_PREFIX}/yubico-piv-tool bash
+	if [[ -n "$(which yubico-piv-tool)" ]]; then
+		"$(which yubico-piv-tool)" "$@"
+	else
+		docker run --rm -it \
+			-v /etc/localtime:/etc/localtime:ro \
+			--device /dev/usb \
+			--device /dev/bus/usb \
+			--name yubico-piv-tool \
+			${DOCKER_REPO_PREFIX}/yubico-piv-tool bash
+	fi
 }
 alias yubico-piv-tool="yubico_piv_tool"
